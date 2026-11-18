@@ -7,7 +7,31 @@ from src.models.user import User
 from src.models.study import Study
 from src.models.observation import Observation
 from src.models import run,review,audit
+from src.models.retest import RetestStudy,RetestSample
 from src.utils.security import hash_password
+
+# 复测单演示数据：几项研究常挑中同一份留样（候选重叠）。
+RETEST_STUDIES=[
+    ('RT-01','绿茶复测·春制',{'茶多酚':18,'咖啡因':2.5},2),
+    ('RT-02','红茶复测·秋制',{'茶多酚':12},2),
+    ('RT-03','高香复测·专项',{'氨基酸':3},1),
+]
+RETEST_SAMPLES=[
+    ('2026-11','01',{'茶多酚':20,'咖啡因':3.0,'氨基酸':2.0}),
+    ('2026-11','02',{'茶多酚':19,'咖啡因':2.8,'氨基酸':3.5}),
+    ('2026-11','03',{'茶多酚':13,'咖啡因':2.0,'氨基酸':1.0}),
+    ('2026-11','04',{'茶多酚':22,'咖啡因':3.5,'氨基酸':2.5}),
+    ('2026-11','05',{'茶多酚':10,'咖啡因':1.5,'氨基酸':0.5}),
+    ('2026-11','06',{'茶多酚':16,'咖啡因':2.2,'氨基酸':3.2}),
+]
+
+def seed_retest(db):
+    for code,name,limits,quota in RETEST_STUDIES:
+        if not db.scalar(select(RetestStudy).where(RetestStudy.code==code)):
+            db.add(RetestStudy(code=code,name=name,limits=limits,quota=quota,reviewed=True))
+    for batch,number,indicators in RETEST_SAMPLES:
+        if not db.scalar(select(RetestSample).where(RetestSample.batch==batch,RetestSample.number==number)):
+            db.add(RetestSample(batch=batch,number=number,indicators=indicators,frozen=True))
 
 def seed():
     Base.metadata.create_all(engine)
@@ -37,7 +61,8 @@ def seed():
                 key=f'DEMO-{k+1}-{n+1:04}'
                 if not db.scalar(select(Observation.id).where(Observation.study_id==study.id,Observation.source_key==key)):
                     db.add(Observation(study_id=study.id,source_key=key,values=values))
+        seed_retest(db)
         db.commit()
-        counts={model.__tablename__:db.scalar(select(func.count()).select_from(model)) for model in (User,Study,Observation)}
+        counts={model.__tablename__:db.scalar(select(func.count()).select_from(model)) for model in (User,Study,Observation,RetestStudy,RetestSample)}
         print(json.dumps(counts));return counts
 if __name__=='__main__': seed()
